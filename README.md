@@ -1,7 +1,7 @@
 # Exploring Predictive Composite Measures for Global Health Facility Disruptions In Conflict Zones: an Analysis of Armed Conflict and Location Event Data Project (ACLED) Indicators for Health Facility Disruption Status
 This project explores predictive composite measures for health facility disruptions in conflict zones based on conflict intensity (measured through repeat conflict events in close proximity) over a defined period of time and type of conflict event. This analysis, in R, emplores an Inverse Distance Weighting Model to quantify conflict intensity for each health facility by conflict event type (battles, explosions/remote violence, riots, violent protests, and violence against civilians). Conflict intensity per conflict event type then serves as the exposure for a multivariate logistic regression model with health facility disruption status (physical, functional, physical & functional, or no disruptions) as the outcome.
 
-The purpose of this analysis is to contribute to the strengthening of predictive models for health service coverage in areas affected by conflict. By gaining a deeper understanding of how different types of violent conflict impacts the functionality and structure of health facilities, we can better understand how to target emergency health response and functionality surveillence. 
+The purpose of this analysis is to contribute to the strengthening of predictive models for health service coverage in areas affected by conflict. By gaining a deeper understanding of how different types of violent conflict impact the functionality and structure of health facilities, we can better understand how to target emergency health response and functionality status surveillence. 
 
 ## Instructions for Use
 ### Data Sources
