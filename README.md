@@ -20,4 +20,4 @@ The R file includes all packages needed. Step-by-step code walkthrough is provid
 More detailed information can be found in Code_Documentation.doc which provides detailed background/rationale, codebook, methodology, analysis model, and code walkthrough. 
 
 ## Contact Information
-For questions or suggestions, please contact Arden Saravis at 
+For questions or suggestions, please contact the creator on linkedin: https://www.linkedin.com/in/arden-saravis/
