@@ -7,20 +7,23 @@
 # Clear environment
 rm(list=ls())
 
-
-######################################## DATA CLEANING ########################################
+# ------------------------------------------------------------------------------
+#                                 DATA CLEANING
+# ------------------------------------------------------------------------------
 # Load libraries for data cleaning
 library(tidyverse)
 library(dplyr)
 
-######## ACLED Data Cleaning #########
+###########################
+#   ACLED Data Cleaning   #
+###########################
 
-###### 1) Load ACLED data
+###### 1) Load ACLED data 
 # Due to the volume of data included in ACLED, data will likely need to be downloaded in sections. Load all sections into R and merge the datasets together. 
 
 # Read in ACLED data
-data <- read.csv("/Users/arden/Desktop/Capstone/Data - Capstone/ACLED_Data_pt1.csv")
-data2 <- read.csv("/Users/arden/Desktop/Capstone/Data - Capstone/ACLED_Data_pt2.csv")
+data <- read.csv("[insert pathname to data]")
+data2 <- read.csv("[insert pathname to data]")
 
 # Merge the datasets together (if ACLED is downloaded in sections)
 acled <- rbind(data, data2)
@@ -58,7 +61,11 @@ acled <- acled %>% filter(!(sub_event_type %in% c("Protest with intervention",
 
 write.csv(acled, file = "acled_clean.csv")
 
-######### Health Facility Disruption Dataset Creation/Cleaning #########
+
+############################################################
+#   Health Facility Disruption Dataset Creation/Cleaning   #
+############################################################
+
 # This code uses data from the Humanitarian Data Exchange (HDE) to mimic a dataset that has regular health facility disruption status updates. 
 # Variables in the HDE include: 'X', 'latutide', 'longitude'
 
@@ -101,7 +108,11 @@ nigeria_hf$date <- rep(dates, each = n)
 nigeria_hf$X <- 1:nrow(nigeria_hf)
 
 
-######################################## ANALYSIS ########################################
+
+# ------------------------------------------------------------------------------
+#                                 ANALYSIS
+# ------------------------------------------------------------------------------
+
 # Load libraries for analysis
 library(ggplot2)
 library(maps)
@@ -284,6 +295,124 @@ aggregate_results <- lapply(1:nrow(facilities_sf), function(n) {
 idw_results_1yr <- do.call(rbind, aggregate_results)
 
 glimpse(idw_results_1yr)
+
+###### **OPTIONAL: visualize inverse distance weighting model for one health facility at a time **
+
+# Visualization function for a selected health facility with labels to show IDW 
+visualize_idw <- function(facility, p=2) {
+  selected_facility <- facilities_sf[facility, ] 
+  acled_sf_4wk <- acled_sf[acled_sf$event_date >= selected_facility$four_weeks & acled_sf$event_date <= selected_facility$date, ]
+  acled_sf_4wk$dist <- as.vector(st_distance(selected_facility, acled_sf_4wk))
+  acled_sf_4wk <- acled_sf_4wk[acled_sf_4wk$dist <= 20000, ]
+  
+  # Create buffer circles around the health facility
+  buffer_20km <- st_buffer(selected_facility, dist = 20000)
+  buffer_15km <- st_buffer(selected_facility, dist = 15000)
+  buffer_10km <- st_buffer(selected_facility, dist = 10000)
+  buffer_5km <- st_buffer(selected_facility, dist = 5000)
+  
+  # Calculate the bounding box for the plot
+  bbox <- st_bbox(selected_facility)
+  range <- 20000  # Define a range around the facility to ensure it's centered
+  
+  
+  # Check if the subset is empty and if so, output a plot that states there are no surrounding conflict types during a certain time period
+  if (nrow(acled_sf_4wk) == 0) {
+    return(ggplot() + 
+             geom_sf(data = selected_facility, aes(color = "Health Facility"), size = 6.5, shape = 18) +
+             geom_sf(data = buffer_20km, fill = NA, color = "black", linetype = "dashed") +  # Add the buffer circle
+             geom_sf(data = buffer_15km, fill = NA, color = "black", linetype = "dashed") +  # Add the buffer circle
+             geom_sf(data = buffer_10km, fill = NA, color = "black", linetype = "dashed") +  # Add the buffer circle
+             geom_sf(data = buffer_5km, fill = NA, color = "black", linetype = "dashed") +  # Add the buffer circle
+             labs(title = paste("No Conflict Events Within 20km of Health Facility", facilities_sf$X[facility]),
+                  subtitle = paste("4 weeks prior to", selected_facility$date),
+                  color = "Event Type",
+                  x = "Longitude",
+                  y = "Latitude") +
+             coord_sf(xlim = c(bbox$xmin - range, bbox$xmax + range), ylim = c(bbox$ymin - range, bbox$ymax + range)) +
+             scale_color_manual(name = "Legend", 
+                                values = c("Health Facility" = "darkblue"), 
+                                labels = c("Health Facility"), 
+                                breaks = "Health Facility") +
+             theme_minimal() +
+             theme(plot.title = element_text(hjust = 0.5, face = "bold"),  # Center and bold the title
+                   plot.subtitle = element_text(hjust = 0.5),
+                   panel.grid.major = element_line(color = 'gray95', size = 0.2),
+                   panel.grid.minor = element_line(color = 'gray95', size = 0.2),
+                   axis.text.x = element_text(angle = 45, hjust = 1)  # Slant the longitude points
+             )
+    )
+  }
+  
+  # Compute inverse distance weights for each conflict event
+  acled_sf_4wk$weights <- 1 / (acled_sf_4wk$dist^p)
+  
+  # Transform both datasets to the same CRS
+  selected_facility_transformed <- st_transform(selected_facility, crs = 3857)
+  acled_sf_4wk_transformed <- st_transform(acled_sf_4wk, crs = 3857)
+  
+  # Jitter the conflict events
+  acled_sf_4wk_transformed <- st_jitter(acled_sf_4wk_transformed, amount = 1000)
+  
+  # Round all numeric columns to 3 significant figures
+  acled_sf_4wk_transformed[] <- lapply(acled_sf_4wk_transformed, function(x) {
+    if (is.numeric(x)) signif(x, 3) else x
+  })
+  
+  # Create buffer circles around the health facility
+  buffer_20km <- st_buffer(selected_facility_transformed, dist = 20000)
+  buffer_15km <- st_buffer(selected_facility_transformed, dist = 15000)
+  buffer_10km <- st_buffer(selected_facility_transformed, dist = 10000)
+  buffer_5km <- st_buffer(selected_facility_transformed, dist = 5000)
+  
+  
+  # Define a scale of colors for event_type
+  event_type_colors <- c("Battles" = "red", 
+                         "Riots" = "blue", 
+                         "Protests" = "green", 
+                         "Violence against civilians" = "orange",
+                         "Explosions/remote violence" = "purple") 
+  
+  # Calculate the bounding box for the plot
+  bbox <- st_bbox(selected_facility_transformed)
+  range <- 20000  # Define a range around the facility to ensure it's centered
+  
+  ggplot() +
+    geom_sf(data = acled_sf_4wk_transformed, aes(color = event_type, size = weights), alpha = 0.7) +  # Updated to include size aesthetic
+    geom_sf(data = selected_facility_transformed, aes(color = "Health Facility"), size = 6.5, shape = 18) +
+    geom_sf(data = buffer_20km, fill = NA, color = "black", linetype = "dashed") +  # Add the buffer circle
+    geom_sf(data = buffer_15km, fill = NA, color = "black", linetype = "dashed") +  # Add the buffer circle
+    geom_sf(data = buffer_10km, fill = NA, color = "black", linetype = "dashed") +  # Add the buffer circle
+    geom_sf(data = buffer_5km, fill = NA, color = "black", linetype = "dashed") +  # Add the buffer circle
+    geom_sf_text(data = acled_sf_4wk_transformed, 
+                 aes(label = format(weights, scientific = TRUE)), 
+                 nudge_y = 1000,   
+                 nudge_x = 0,      
+                 size = 3) +       
+    labs(title = paste("Conflict Events Within 20km of Health Facility", facilities_sf$X[facility]),
+         subtitle = paste("4 weeks prior to", selected_facility$date),
+         color = "Event Type", 
+         size = "Weight",       
+         x = "Longitude",
+         y = "Latitude") +
+    coord_sf(xlim = c(bbox$xmin - range, bbox$xmax + range), ylim = c(bbox$ymin - range, bbox$ymax + range)) +
+    scale_color_manual(name = "Legend", 
+                       values = c("Health Facility" = "darkblue", event_type_colors), 
+                       labels = c("Health Facility", names(event_type_colors)), 
+                       breaks = c("Health Facility", names(event_type_colors))) +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+          plot.subtitle = element_text(hjust = 0.5),
+          panel.grid.major = element_line(color = 'gray95', size = 0.2),
+          panel.grid.minor = element_line(color = 'gray95', size = 0.2),
+          axis.text.x = element_text(angle = 45, hjust = 1)  # Slant the longitude points
+    )  # Center and bold the title
+}
+
+# Visualize for a specific facility with labels in exponential format (e.g., facility with ID 34)
+visualize_idw(134)
+visualize_idw(34)
+
 
 
 ###### 6) Reformat the idw_results dataframe for regression analysis
